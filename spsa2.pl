@@ -195,7 +195,7 @@ sub run_spsa
 {
     my ($threadId) = @_;
     my $row;
-#	my %var_eng2 = %shared_theta;
+	my %var_eng2 = %shared_theta;
 #	my (%var_value,%var_eng2);
 
 
@@ -209,6 +209,9 @@ sub run_spsa
 
     my $result_inc = 0;
 	my $coeff = 1;
+	my $cost = 0.5;
+	my $cost_plus = 0.5;
+	my $cost_minus = 0.5;
 
     # STEP. Open thread specific log file
     my $path = $gamelog_path;
@@ -250,9 +253,9 @@ sub run_spsa
                  $var_value{$name}  = $shared_theta{$name};
                  $var_min{$name}    = $row->[$VAR_MIN];
                  $var_max{$name}    = $row->[$VAR_MAX];
-                 $var_a{$name}      = $row->[$VAR_A] / ($A + $iter) ** $alpha;
-                 $var_c{$name}      = $row->[$VAR_C] / $iter ** $gamma;
-                 $var_R{$name}      = $var_a{$name} / $var_c{$name} ** 2;
+                 $var_a{$name}      = $cost_plus ** $alpha;
+                 $var_c{$name}      = 10 * $cost_plus ** $gamma;
+                 $var_R{$name}      = 2500 * $var_a{$name} / $var_c{$name} ** 2;
                  $var_delta{$name}  = int(rand(2)) ? 1 : -1;
 
                  $var_eng1plus{$name} = min(max($var_value{$name} + $var_c{$name} * $var_delta{$name}, $var_min{$name}), $var_max{$name});
@@ -263,14 +266,18 @@ sub run_spsa
         }
 
         # STEP. Play two games (with alternating colors) and obtain the result (2, 1, 0, -1, -2) from eng1 perspective.
-        my $result_plus = ($simulate ? simulate_2games(\%var_eng1plus, \%var_eng2) : engine_2games(\%var_eng1plus,\%var_eng2));# print $result_plus;
+        for (my $i=0;$i<5;$i++) {
+		my $result_plus = ($simulate ? simulate_2games(\%var_eng1plus, \%var_eng2) : engine_2games(\%var_eng1plus,\%var_eng2));# print $result_plus;
         $result_inc = $result_inc + $result_plus;
-        my $cost_plus = 1 - 1 / (1 + 10 ** (-$result_inc / 400));
+          }
+        $cost_plus = 1 - 1 / (1 + 10 ** (-$result_inc / 400));
 
+        for (my $i=0;$i<5;$i++) {
         my $result_minus = ($simulate ? simulate_2games(\%var_eng1minus, \%var_eng2) : engine_2games(\%var_eng1minus,\%var_eng2));# print $result_minus;
         $result_inc = $result_inc + $result_minus;
-        my $cost_minus = 1 - 1 / (1 + 10 ** (-$result_inc / 400));
-		my $cost = $cost_plus - $cost_minus;
+ }
+        $cost_minus = 1 - 1 / (1 + 10 ** (-$result_inc / 400));
+		$cost = $cost_plus - $cost_minus;
 
         $coeff = 5.0 * ($cost - 0.1) * $cost; 
 
@@ -284,7 +291,7 @@ sub run_spsa
             {
                 my $name = $row->[$VAR_NAME];
 
-                $shared_theta{$name} += $var_R{$name} * $var_c{$name} * ($result_plus - $result_minus) / $var_delta{$name};
+                $shared_theta{$name} += $var_R{$name} * $var_c{$name} * $cost / $var_delta{$name};
                 $shared_theta{$name} = max(min($shared_theta{$name}, $var_max{$name}), $var_min{$name});
                 
                 $logLine .= ",$shared_theta{$name}";
