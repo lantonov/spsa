@@ -254,8 +254,8 @@ sub run_spsa
                  $var_min{$name}    = $row->[$VAR_MIN];
                  $var_max{$name}    = $row->[$VAR_MAX];
                  $var_a{$name}      = ($cost_plus + $cost_minus) ** 2;
-                 $var_c{$name}      = 20 * ($cost_plus + $cost_minus - 0.2);
-                 $var_R{$name}      = 4500 * $var_a{$name} / $var_c{$name} ** 2;
+                 $var_c{$name}      = 12 * ($cost_plus + $cost_minus - 0.2);
+                 $var_R{$name}      = 2000 * $var_a{$name} / $var_c{$name} ** 2;
                  $var_delta{$name}  = int(rand(2)) ? 1 : -1;
 
                  $var_eng1plus{$name} = min(max($var_value{$name} + $var_c{$name} * $var_delta{$name}, $var_min{$name}), $var_max{$name});
