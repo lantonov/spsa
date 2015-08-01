@@ -199,7 +199,6 @@ sub run_spsa
     my ($threadId) = @_;
     my $row;
     my $result_inc = 0;
-	my $coeff = 1;
 	my $cost = 0.5;
 	my $cost_plus = 0.5;
 	my $cost_minus = 0.5;
@@ -244,7 +243,7 @@ sub run_spsa
                  $var_value{$name}  = $shared_theta{$name};
                  $var_min{$name}    = $row->[$VAR_MIN];
                  $var_max{$name}    = $row->[$VAR_MAX];
-                 $var_a{$name}      = ($cost_plus + $cost_minus) ** 3;
+                 $var_a{$name}      = ($cost_plus + $cost_minus - 2/11) ** 3;
                  $var_c{$name}      = 16 * ($cost_plus + $cost_minus) ** 1.5;
                  $var_R{$name}      = 4500 * log(1 + $n_variables) * $var_a{$name} / $var_c{$name} ** 2;
                  $var_delta{$name}  = int(rand(2)) ? 1 : -1;
@@ -269,8 +268,6 @@ sub run_spsa
  }
         $cost_minus = 1 - 1 / (1 + 10 ** (-$result_inc / 400));
 		$cost = $cost_plus - $cost_minus;
-
-        $coeff = 5.0 * ($cost - 0.1) * $cost; 
 
         # STEP. Apply the result
         {
