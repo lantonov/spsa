@@ -138,6 +138,9 @@ sub read_csv
         die "Invalid simul ELO: '$row->[$VAR_SIMUL_ELO]'"     if ($row->[$VAR_SIMUL_ELO] !~ /^[-+]?[0-9]*\.?[0-9]+$/);
     }
     
+    # Calculate the number of variables
+    my $n_variables = scalar(@variables);
+
     # STEP. Calculate SPSA parameters for each variable.
     foreach $row (@variables)
     {
@@ -195,6 +198,7 @@ sub run_spsa
 {
     my ($threadId) = @_;
     my $row;
+<<<<<<< HEAD
 	my %var_eng2 = %shared_theta;
 
 	# STEP. Calculate number of variables
@@ -262,7 +266,7 @@ sub run_spsa
 
                  $var_eng1plus{$name} = min(max($var_value{$name} + $var_c{$name} * $var_delta{$name}, $var_min{$name}), $var_max{$name});
                  $var_eng1minus{$name} = min(max($var_value{$name} - $var_c{$name} * $var_delta{$name}, $var_min{$name}), $var_max{$name});
-#                 $var_eng2{$name} = min(max($var_value{$name} - $var_c{$name} * $var_delta{$name}, $var_min{$name}), $var_max{$name});
+
                  print "Iteration: $iter, variable: $name, value: $var_value{$name}, a: $var_a{$name}, c: $var_c{$name}, R: $var_R{$name}\n";
              }
         }
@@ -270,18 +274,16 @@ sub run_spsa
         # STEP. Play two games (with alternating colors) and obtain the result (2, 1, 0, -1, -2) from eng1 perspective.
         for (my $i=0;$i<5;$i++) {
 		my $result_plus = ($simulate ? simulate_2games(\%var_eng1plus, \%var_eng2) : engine_2games(\%var_eng1plus,\%var_eng2));# print $result_plus;
-        $result_inc = $result_inc + $result_plus;
+        $result_inc += $result_plus;
           }
         $cost_plus = 1 - 1 / (1 + 10 ** (-$result_inc / 400));
 
         for (my $i=0;$i<5;$i++) {
         my $result_minus = ($simulate ? simulate_2games(\%var_eng1minus, \%var_eng2) : engine_2games(\%var_eng1minus,\%var_eng2));# print $result_minus;
-        $result_inc = $result_inc + $result_minus;
+        $result_inc += $result_minus;
  }
         $cost_minus = 1 - 1 / (1 + 10 ** (-$result_inc / 400));
 		$cost = $cost_plus - $cost_minus;
-
-        $coeff = 5.0 * ($cost - 0.1) * $cost; 
 
         # STEP. Apply the result
         {
