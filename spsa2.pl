@@ -137,7 +137,7 @@ sub read_csv
         die "Invalid r end: '$row->[$VAR_R_END]'"             if ($row->[$VAR_R_END]     !~ /^[-+]?[0-9]*\.?[0-9]+$/);
         die "Invalid simul ELO: '$row->[$VAR_SIMUL_ELO]'"     if ($row->[$VAR_SIMUL_ELO] !~ /^[-+]?[0-9]*\.?[0-9]+$/);
     }
-
+    
     # STEP. Calculate SPSA parameters for each variable.
     foreach $row (@variables)
     {
@@ -158,7 +158,7 @@ sub read_csv
     foreach $row (@variables)
     {
         $shared_theta{$row->[$VAR_NAME]} = $row->[$VAR_START]; 
-        $var_eng2{$row->[$VAR_NAME]} = $row->[$VAR_START]; 		
+        $var_eng2{$row->[$VAR_NAME]} = $row->[$VAR_START];
     }
 
     # STEP. Launch SPSA threads
@@ -196,19 +196,21 @@ sub run_spsa
     my ($threadId) = @_;
     my $row;
 	my %var_eng2 = %shared_theta;
-#	my (%var_value,%var_eng2);
 
+	# STEP. Calculate number of variables
+	my $n_variables = scalar(@variables); print "$n_variables \n";
 
-	# STEP. Calculate the names and variables for the second engine.
-#             foreach $row (@variables)
-#             {
-#                 my $name  = $row->[$VAR_NAME];
-#                 $var_value{$name}  = $shared_theta{$name};
-#                 $var_eng2{$name} = $var_value{$name};
-#             }
+	# STEP. Calculate sum and mean of absolute variable values.
+	my $sum_var;
+             foreach $row (@variables)
+             {
+              my $name  = $row->[$VAR_NAME];
+              $sum_var += abs($var_eng2{$name});
+             }
 
+    my $half_mean = $sum_var / $n_variables / 2; print "$half_mean \n";
     my $result_inc = 0;
-	my $coeff = 1;
+    my $coeff = 1;
 	my $cost = 0.5;
 	my $cost_plus = 0.5;
 	my $cost_minus = 0.5;
@@ -253,9 +255,9 @@ sub run_spsa
                  $var_value{$name}  = $shared_theta{$name};
                  $var_min{$name}    = $row->[$VAR_MIN];
                  $var_max{$name}    = $row->[$VAR_MAX];
-                 $var_a{$name}      = ($cost_plus + $cost_minus) ** 2;
-                 $var_c{$name}      = 12 * ($cost_plus + $cost_minus - 0.2);
-                 $var_R{$name}      = 2000 * $var_a{$name} / $var_c{$name} ** 2;
+                 $var_a{$name}      = ($cost_plus + $cost_minus) ** 3;
+                 $var_c{$name}      = $half_mean * ($cost_plus + $cost_minus) ** 1.5;
+                 $var_R{$name}      = 10 * log(1 + $n_variables) * $var_a{$name} * $half_mean ** 2 / $var_c{$name} ** 2;
                  $var_delta{$name}  = int(rand(2)) ? 1 : -1;
 
                  $var_eng1plus{$name} = min(max($var_value{$name} + $var_c{$name} * $var_delta{$name}, $var_min{$name}), $var_max{$name});
