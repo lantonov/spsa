@@ -138,9 +138,6 @@ sub read_csv
         die "Invalid simul ELO: '$row->[$VAR_SIMUL_ELO]'"     if ($row->[$VAR_SIMUL_ELO] !~ /^[-+]?[0-9]*\.?[0-9]+$/);
     }
     
-    # Calculate the number of variables
-    my $n_variables = scalar(@variables);
-
     # STEP. Calculate SPSA parameters for each variable.
     foreach $row (@variables)
     {
@@ -198,8 +195,11 @@ sub run_spsa
 {
     my ($threadId) = @_;
     my $row;
-<<<<<<< HEAD
 	my %var_eng2 = %shared_theta;
+    my $result_inc = 0;
+	my $cost = 0.5;
+	my $cost_plus = 0.5;
+	my $cost_minus = 0.5;
 
 	# STEP. Calculate number of variables
 	my $n_variables = scalar(@variables); print "$n_variables \n";
@@ -212,12 +212,7 @@ sub run_spsa
               $sum_var += abs($var_eng2{$name});
              }
 
-    my $half_mean = $sum_var / $n_variables / 2; print "$half_mean \n";
-    my $result_inc = 0;
-    my $coeff = 1;
-	my $cost = 0.5;
-	my $cost_plus = 0.5;
-	my $cost_minus = 0.5;
+	my $half_mean = $sum_var / $n_variables / 2; print "$half_mean \n";
 
     # STEP. Open thread specific log file
     my $path = $gamelog_path;
@@ -236,8 +231,8 @@ sub run_spsa
     while(1)
     {
         # SPSA coefficients indexed by variable.
-        my (%var_value, %var_min, %var_max, %var_a, %var_c, %var_R, %var_delta, %var_eng1plus, %var_eng1minus);
-        my $iter; 
+        my (%var_value, %var_min, %var_max, %var_delta, %var_eng1plus, %var_eng1minus);
+        my ($iter, $var_a, $var_c, $var_R); 
 
         {
              lock($shared_lock);
@@ -252,36 +247,38 @@ sub run_spsa
              $iter = $shared_iter;
 
              # STEP. Calculate the necessary coefficients for each variable.
+        $var_a  = ($cost_plus + $cost_minus) ** 3;
+        $var_c  = $half_mean * ($cost_plus + $cost_minus) ** 1.5;
+        $var_R  = 10 * log(1 + $n_variables) * $var_a * $half_mean ** 2 / $var_c ** 2;
+
              foreach $row (@variables)
              {
                  my $name  = $row->[$VAR_NAME];
-
                  $var_value{$name}  = $shared_theta{$name};
                  $var_min{$name}    = $row->[$VAR_MIN];
                  $var_max{$name}    = $row->[$VAR_MAX];
-                 $var_a{$name}      = ($cost_plus + $cost_minus) ** 3;
-                 $var_c{$name}      = $half_mean * ($cost_plus + $cost_minus) ** 1.5;
-                 $var_R{$name}      = 10 * log(1 + $n_variables) * $var_a{$name} * $half_mean ** 2 / $var_c{$name} ** 2;
                  $var_delta{$name}  = int(rand(2)) ? 1 : -1;
 
-                 $var_eng1plus{$name} = min(max($var_value{$name} + $var_c{$name} * $var_delta{$name}, $var_min{$name}), $var_max{$name});
-                 $var_eng1minus{$name} = min(max($var_value{$name} - $var_c{$name} * $var_delta{$name}, $var_min{$name}), $var_max{$name});
+                 $var_eng1plus{$name} = min(max($var_value{$name} + $var_c * $var_delta{$name}, $var_min{$name}), $var_max{$name});
+                 $var_eng1minus{$name} = min(max($var_value{$name} - $var_c * $var_delta{$name}, $var_min{$name}), $var_max{$name});
 
-                 print "Iteration: $iter, variable: $name, value: $var_value{$name}, a: $var_a{$name}, c: $var_c{$name}, R: $var_R{$name}\n";
+				 print "Iteration: $iter, variable: $name, value: $var_value{$name}, a: $var_a, c: $var_c, R: $var_R\n";
              }
         }
 
         # STEP. Play two games (with alternating colors) and obtain the result (2, 1, 0, -1, -2) from eng1 perspective.
         for (my $i=0;$i<5;$i++) {
 		my $result_plus = ($simulate ? simulate_2games(\%var_eng1plus, \%var_eng2) : engine_2games(\%var_eng1plus,\%var_eng2));# print $result_plus;
-        $result_inc += $result_plus;
+        $result_inc = $result_inc + $result_plus;
           }
+
         $cost_plus = 1 - 1 / (1 + 10 ** (-$result_inc / 400));
 
         for (my $i=0;$i<5;$i++) {
         my $result_minus = ($simulate ? simulate_2games(\%var_eng1minus, \%var_eng2) : engine_2games(\%var_eng1minus,\%var_eng2));# print $result_minus;
-        $result_inc += $result_minus;
- }
+        $result_inc = $result_inc + $result_minus;
+          }
+
         $cost_minus = 1 - 1 / (1 + 10 ** (-$result_inc / 400));
 		$cost = $cost_plus - $cost_minus;
 
@@ -295,7 +292,7 @@ sub run_spsa
             {
                 my $name = $row->[$VAR_NAME];
 
-                $shared_theta{$name} += $var_R{$name} * $var_c{$name} * $cost / $var_delta{$name};
+                $shared_theta{$name} += $var_R * $var_c * $cost / $var_delta{$name};
                 $shared_theta{$name} = max(min($shared_theta{$name}, $var_max{$name}), $var_min{$name});
                 
                 $logLine .= ",$shared_theta{$name}";
