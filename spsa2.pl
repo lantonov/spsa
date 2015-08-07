@@ -26,7 +26,6 @@ use IPC::Open2;
 use IO::Select;
 use Config::Tiny;
 use Text::CSV;
-use Math::MatrixReal;
 use Math::Round qw(nearest nearest_floor);
 use List::Util qw(min max);
 use IO::Handle;
@@ -141,14 +140,6 @@ sub read_csv
 #        die "Invalid simul ELO: '$row->[$VAR_SIMUL_ELO]'"     if ($row->[$VAR_SIMUL_ELO] !~ /^[-+]?[0-9]*\.?[0-9]+$/);
     }
     
-#    # STEP. Calculate SPSA parameters for each variable.
-#    foreach $row (@variables)
-#    {
-#        $row->[$VAR_C]       = $row->[$VAR_C_END] * $iterations ** $gamma; 
-#        $row->[$VAR_A_END]   = $row->[$VAR_R_END] * $row->[$VAR_C_END] ** 2;
-#        $row->[$VAR_A]       = $row->[$VAR_A_END] * ($A + $iterations) ** $alpha;
-#    }
-
     # STEP. Create variable index for easy access.
     foreach $row (@variables)
     {
@@ -198,7 +189,6 @@ sub run_spsa
 {
     my ($threadId) = @_;
     my $row;
-#	my %var_eng2 = %shared_theta;
     my $result_inc = 0;
 	my $cost = 0.5;
 	my $cost_plus = 0.5;
@@ -206,18 +196,6 @@ sub run_spsa
 
 	# STEP. Calculate number of variables
 	my $n_variables = scalar(@variables); print "$n_variables \n";
-
-my $var_eng_plus = new Math::MatrixReal(1,$n_variables);
-my $var_eng_minus = new Math::MatrixReal(1,$n_variables);
-
-	# STEP. Create vector of initial values.
-	my $var_eng0 = new Math::MatrixReal(1,$n_variables);
-    my $count = 1;
-    foreach $row (@variables)
-    {   
-	$var_eng0->assign(1,$count,$row->[$VAR_START]);
-	$count++;
-    }
 
 	# STEP. Calculate sum and mean of absolute variable values.
 	my $sum_var;
@@ -263,12 +241,9 @@ my $var_eng_minus = new Math::MatrixReal(1,$n_variables);
 
              # STEP. Calculate the necessary coefficients for each variable.
         $var_a  = ($cost_plus + $cost_minus) ** 3;
-#        $var_a  = nearest(1,(2/11 - $cost_plus - $cost_minus) ** 2 / 0.066942149);
         $var_c  = $half_mean * ($cost_plus + $cost_minus) ** 1.5;
-#        $var_c  = 2 * $var_a;
         $var_R  = 10 * log(1 + $n_variables) * $var_a * $half_mean ** 2 / $var_c ** 2;
 
-    my $count_bessie = 1;
              foreach $row (@variables)
              {
                  my $name  = $row->[$VAR_NAME];
@@ -279,9 +254,7 @@ my $var_eng_minus = new Math::MatrixReal(1,$n_variables);
 
                  $var_eng1plus{$name} = min(max($var_value{$name} + $var_c * $var_delta{$name}, $var_min{$name}), $var_max{$name});
                  $var_eng1minus{$name} = min(max($var_value{$name} - $var_c * $var_delta{$name}, $var_min{$name}), $var_max{$name});
-                 $var_eng_plus->assign(1,$count_bessie,$var_eng1plus{$name});
-				 $var_eng_minus->assign(1,$count_bessie,$var_eng1minus{$name});
-	             $count_bessie++;
+
 		print "Iteration: $iter, variable: $name, value: $var_value{$name}, a: $var_a, c: $var_c, Increment: "$var_R * $var_c * $cost" \n";
              }
         }
@@ -313,7 +286,6 @@ my $var_eng_minus = new Math::MatrixReal(1,$n_variables);
                 my $name = $row->[$VAR_NAME];
 
                 $shared_theta{$name} += $var_R * $var_c * $cost / $var_delta{$name};
-#                $shared_theta{$name} += $var_a * $cost / abs($cost) / $var_delta{$name};
                 $shared_theta{$name} = max(min($shared_theta{$name}, $var_max{$name}), $var_min{$name});
                 
                 $logLine1 .= ",$shared_theta{$name}";
@@ -429,30 +401,17 @@ sub engine_2games
     my $side_to_start = $tmparray[1]; #'b' or 'w'
 
     # STEP. Send rounded values to engines
- my $column = 1;
-    foreach my $var (keys(%$var_eng2))
+
+	foreach my $var (keys(%$var_eng2))
     {
-#       my $val1 = nearest(1, $var_eng1->element(1,$column));
        my $val1 = nearest(1, $var_eng1->{$var});
        my $val2 = nearest(1, $var_eng2->{$var});
-#		my $val1 = $var_eng1->element(1,$column);
-#        my $val2 = $var_eng2->{$var};
         
         print Eng1_Writer "setoption name $var value $val1\n";
         print Eng2_Writer "setoption name $var value $val2\n";
-		       $column++;
     }
 
-#    my $column = 1;
-#    for ($column=1;$column<$n_variables;$column++)
-#    {   
-#		my $val1 = nearest(1, $var_eng1->element(1,$column));
-#        my $val2 = nearest(1, $var_eng2->element(1,$column));
-#       
-#        print Eng1_Writer "setoption name $var value $val1\n";# print $val2;
-#        print Eng2_Writer "setoption name $var value $val2\n";
-#    }
-        
+   
     # STEP. Play two games
     for (my $eng1_is_white = 0; $eng1_is_white < 2; $eng1_is_white++)
     {
