@@ -47,9 +47,6 @@ my $variables_path = $Config->{Main}->{Variables} ; defined($variables_path) || 
 my $log_path       = $Config->{Main}->{Log}       ; defined($log_path)       || die "Log not defined!";;
 my $gamelog_path   = $Config->{Main}->{GameLog}   ; defined($gamelog_path)   || die "GameLog not defined!";;
 my $iterations     = $Config->{Main}->{Iterations}; defined($iterations)     || die "Iterations not defined!";;
-my $A              = $Config->{Main}->{A}         ; defined($A)              || die "A not defined!";
-my $gamma          = $Config->{Main}->{Gamma}     ; defined($gamma)          || die "Gamma not defined!";
-my $alpha          = $Config->{Main}->{Alpha}     ; defined($alpha)          || die "Alpha not defined!";
 
 my $eng1_path        = $Config->{Engine}->{Engine1}        ; defined($eng1_path)        || $simulate || die "Engine1 not defined!";
 my $eng2_path        = $Config->{Engine}->{Engine2}        ; defined($eng2_path)        || $simulate || die "Engine2 not defined!";
@@ -72,12 +69,6 @@ my $VAR_MAX       = 3; # Maximum allowed value
 my $VAR_C_END     = 4; # c in the last iteration
 my $VAR_R_END     = 5; # R in the last iteration. R = a / c ^ 2.
 my $VAR_SIMUL_ELO = 6; # Simulation: Elo loss from 0 (optimum) to +-100)
-my $VAR_END       = 7; # Nothing
-
-# Extra calculated COLUMNS (SPSA paramters)
-my $VAR_C         = 7; # c
-my $VAR_A_END     = 8; # a in the last iteration
-my $VAR_A         = 9; # a
 
 ### SECTION. Variable definitions. (Static data during execution)
 my @variables;
@@ -136,8 +127,7 @@ sub read_csv
         die "Invalid max: '$row->[$VAR_MAX]'"                 if ($row->[$VAR_MAX]       !~ /^[-+]?[0-9]*\.?[0-9]+$/);
         die "Invalid min: '$row->[$VAR_MIN]'"                 if ($row->[$VAR_MIN]       !~ /^[-+]?[0-9]*\.?[0-9]+$/);
         die "Invalid c end: '$row->[$VAR_C_END]'"             if ($row->[$VAR_C_END]     !~ /^[-+]?[0-9]*\.?[0-9]+$/);
-        die "Invalid r end: '$row->[$VAR_R_END]'"             if ($row->[$VAR_R_END]     !~ /^[-+]?[0-9]*\.?[0-9]+$/);
-#        die "Invalid simul ELO: '$row->[$VAR_SIMUL_ELO]'"     if ($row->[$VAR_SIMUL_ELO] !~ /^[-+]?[0-9]*\.?[0-9]+$/);
+        die "Invalid simul ELO: '$row->[$VAR_SIMUL_ELO]'"     if ($row->[$VAR_SIMUL_ELO] !~ /^[-+]?[0-9]*\.?[0-9]+$/);
     }
     
     # STEP. Create variable index for easy access.
@@ -189,13 +179,12 @@ sub run_spsa
 {
     my ($threadId) = @_;
     my $row;
-    my $result_inc = 0;
+    my $result_inc_plus = 0;
+    my $result_inc_minus = 0;
 	my $cost = 0.5;
-	my $cost_plus = 0.5;
-	my $cost_minus = 0.5;
 
 	# STEP. Calculate number of variables
-	my $n_variables = scalar(@variables); print "$n_variables \n";
+	my $n_variables = scalar(@variables);# print "$n_variables \n";
 
 	# STEP. Calculate sum and mean of absolute variable values.
 	my $sum_var;
@@ -205,7 +194,7 @@ sub run_spsa
               $sum_var += abs($var_eng2{$name});
              }
 
-	my $half_mean = $sum_var / $n_variables / 2; print "$half_mean \n";
+	my $mean = $sum_var / $n_variables; print "$mean \n";
 
     # STEP. Open thread specific log file
     my $path = $gamelog_path;
@@ -225,13 +214,13 @@ sub run_spsa
     {
         # SPSA coefficients indexed by variable.
         my (%var_value, %var_min, %var_max, %var_delta);
-        my ($iter, $var_a, $var_c, $var_R); 
+        my ($iter, $var_a, $var_c); 
 
         {
              lock($shared_lock);
 
              # STEP. Increase the shared interation counter
-             if (++$shared_iter > $iterations || $cost_plus + $cost_minus < 2/11)
+             if (++$shared_iter > $iterations || $cost < 1/11)
              {
                  engine_quit() if (!$simulate);
                  return;
@@ -240,9 +229,8 @@ sub run_spsa
              $iter = $shared_iter;
 
              # STEP. Calculate the necessary coefficients for each variable.
-        $var_a  = ($cost_plus + $cost_minus) ** 3;
-        $var_c  = $half_mean * ($cost_plus + $cost_minus) ** 1.5;
-        $var_R  = 10 * log(1 + $n_variables) * $var_a * $half_mean ** 2 / $var_c ** 2;
+        $var_a  = log(1 + $n_variables) * ($cost - 2/23);
+        $var_c  = $mean * $cost;
 
              foreach $row (@variables)
              {
@@ -255,40 +243,40 @@ sub run_spsa
                  $var_eng1plus{$name} = min(max($var_value{$name} + $var_c * $var_delta{$name}, $var_min{$name}), $var_max{$name});
                  $var_eng1minus{$name} = min(max($var_value{$name} - $var_c * $var_delta{$name}, $var_min{$name}), $var_max{$name});
 
-		print "Iteration: $iter, variable: $name, value: $var_value{$name}, a: $var_a, c: $var_c, Increment: "$var_R * $var_c * $cost" \n";
+		print "Iteration: $iter, variable: $name, value: $var_value{$name}, a: $var_a, c: $var_c, Cost: $cost \n";
              }
         }
 
         # STEP. Play two games (with alternating colors) and obtain the result (2, 1, 0, -1, -2) from eng1 perspective.
-        for (my $i=0;$i<5;$i++) {
+        my $result_inc = 0;
+		for (my $i=0;$i<5;$i++) {
+
 		my $result_plus = ($simulate ? simulate_2games(\%var_eng1plus, \%var_eng2) : engine_2games(\%var_eng1plus,\%var_eng2));# print $result_plus;
-        $result_inc = $result_inc + $result_plus;
-          }
+        $result_inc_plus += $result_plus;
 
-        $cost_plus = 1 - 1 / (1 + 10 ** (-$result_inc / 400));
-
-        for (my $i=0;$i<5;$i++) {
         my $result_minus = ($simulate ? simulate_2games(\%var_eng1minus, \%var_eng2) : engine_2games(\%var_eng1minus,\%var_eng2));# print $result_minus;
-        $result_inc = $result_inc + $result_minus;
+        $result_inc_minus += $result_minus;
+
+		$result_inc += $result_plus - $result_minus; print $result_inc;
           }
 
-        $cost_minus = 1 - 1 / (1 + 10 ** (-$result_inc / 400));
-		$cost = $cost_plus - $cost_minus;
+        $cost = 1 / (1 + 10 ** (max($result_inc_plus + $result_inc_minus,-400) / 400));
 
         # STEP. Apply the result
         {
             lock($shared_lock);
 
-            my $logLine = "$iter, $var_a, "$var_R * $var_c * $cost" \n";
+            my $logLine = "$iter, $var_a, $cost \n";
+			my $logLine1;
 
             foreach $row (@variables)
             {
                 my $name = $row->[$VAR_NAME];
 
-                $shared_theta{$name} += $var_R * $var_c * $cost / $var_delta{$name};
+                $shared_theta{$name} += $var_a * $result_inc / $var_delta{$name};
                 $shared_theta{$name} = max(min($shared_theta{$name}, $var_max{$name}), $var_min{$name});
                 
-                $logLine1 .= ",$shared_theta{$name}";
+             $logLine1 .= ",$shared_theta{$name}";
             }
 
             print LOG "$logLine $logLine1\n "
