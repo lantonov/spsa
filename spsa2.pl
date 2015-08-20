@@ -131,7 +131,6 @@ sub read_csv
         die "Invalid c end: '$row->[$VAR_C_END]'"             if ($row->[$VAR_C_END]     !~ /^[-+]?[0-9]*\.?[0-9]+$/);
         die "Invalid r end: '$row->[$VAR_ZERO]'"             if ($row->[$VAR_ZERO]     !~ /^[-+]?[0-9]*\.?[0-9]+$/);
         die "Invalid simul ELO: '$row->[$VAR_SIMUL_ELO]'"     if ($row->[$VAR_SIMUL_ELO] !~ /^[-+]?[0-9]*\.?[0-9]+$/);
-
     }
     
     # STEP. Create variable index for easy access.
