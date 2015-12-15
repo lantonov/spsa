@@ -267,7 +267,7 @@ sub run_spsa
 		$result_inc += $result_plus - $result_minus; print $result_inc;
           }
 
-        $cost = 1 / (1 + 10 ** (max($result_inc_plus + $result_inc_minus,-400) / 400));
+        $cost = 1 / (1 + 10 ** (max($result_inc_plus + $result_inc_minus,-40) / 400));
 
         # STEP. Apply the result
         {
