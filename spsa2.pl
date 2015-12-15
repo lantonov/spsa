@@ -256,7 +256,7 @@ sub run_spsa
 
         # STEP. Play two games (with alternating colors) and obtain the result (2, 1, 0, -1, -2) from eng1 perspective.
         my $result_inc = 0;
-		for (my $i=0;$i<10;$i++) {
+		for (my $i=0;$i<4;$i++) {
 
 		my $result_plus = ($simulate ? simulate_2games(\%var_eng1plus,\%var_eng2) : engine_2games(\%var_eng1plus,\%var_eng2));# print $result_plus;
         $result_inc_plus += $result_plus;
