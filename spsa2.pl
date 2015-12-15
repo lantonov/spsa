@@ -68,7 +68,7 @@ my $VAR_START     = 1; # Start Value (theta_0)
 my $VAR_MIN       = 2; # Minimum allowed value
 my $VAR_MAX       = 3; # Maximum allowed value
 my $VAR_C_END     = 4; # c in the last iteration
-my $VAR_ZERO     = 5; # R in the last iteration. R = a / c ^ 2.
+my $VAR_ZERO      = 5; # R in the last iteration. R = a / c ^ 2.
 my $VAR_SIMUL_ELO = 6; # Simulation: Elo loss from 0 (optimum) to +-100)
 my $VAR_END       = 7; # Nothing
 
@@ -220,8 +220,8 @@ sub run_spsa
     while(1)
     {
         # SPSA coefficients indexed by variable.
-        my (%var_value, %var_min, %var_max, %var_delta);
-        my ($iter, $var_a, $var_c); 
+        my (%var_value, %var_min, %var_max, %var_delta, %var_c);
+        my ($iter, $var_a); 
 
         {
              lock($shared_lock);
@@ -236,9 +236,7 @@ sub run_spsa
              $iter = $shared_iter;
 
              # STEP. Calculate the necessary coefficients for each variable.
-        $var_a  = 10 * ($cost) ** 2 / (1 + 10 ** ((1+$iter) / $iterations));
-#        $var_c  = $mean * $cost;
-        $var_c  = 10 * $var_a;
+             $var_a  = 10 * ($cost) ** 2 / (1 + 10 ** ((1+$iter) / $iterations));
 
              foreach $row (@variables)
              {
@@ -247,11 +245,12 @@ sub run_spsa
                  $var_min{$name}    = $row->[$VAR_MIN];
                  $var_max{$name}    = $row->[$VAR_MAX];
                  $var_delta{$name}  = int(rand(2)) ? 1 : -1;
+				 $var_c{$name}      = 0.1 * $shared_theta{$name} * $var_a;
 
-                 $var_eng1plus{$name} = min(max($var_value{$name} + $var_c * $var_delta{$name}, $var_min{$name}), $var_max{$name});
-                 $var_eng1minus{$name} = min(max($var_value{$name} - $var_c * $var_delta{$name}, $var_min{$name}), $var_max{$name});
+                 $var_eng1plus{$name}  = min(max($var_value{$name} + $var_c{$name} * $var_delta{$name}, $var_min{$name}), $var_max{$name});
+                 $var_eng1minus{$name} = min(max($var_value{$name} - $var_c{$name} * $var_delta{$name}, $var_min{$name}), $var_max{$name});
 
-		print "Iteration: $iter, variable: $name, value: $var_value{$name}, a: $var_a, c: $var_c, Cost: $cost \n";
+		print "Iteration: $iter, variable: $name, value: $var_value{$name}, a: $var_a, c: $var_c{$name}, Cost: $cost \n";
              }
         }
 
@@ -281,7 +280,7 @@ sub run_spsa
             {
                 my $name = $row->[$VAR_NAME];
 
-                $shared_theta{$name} += $result_inc != 0 ? $var_a * $result_inc / abs($result_inc) / $var_delta{$name} : 0;
+                $shared_theta{$name} += $result_inc != 0 ? 0.1 * $var_c{$name} * $result_inc / abs($result_inc) / $var_delta{$name} : 0;
                 $shared_theta{$name} = max(min($shared_theta{$name}, $var_max{$name}), $var_min{$name});
                 
              $logLine1 .= ",$shared_theta{$name}";
