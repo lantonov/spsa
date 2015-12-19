@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 
 # SPSA Tuner
-# Copyright (C) 2009-2014 Joona Kiiski
+# Copyright (C) 2009-2014 Lyudmil Antonov and Joona Kiiski
 #
 # SPSA Tuner is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
