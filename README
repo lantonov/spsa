@@ -17,94 +17,18 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 1. Introduction to SPSA
 ========================
 
-Please see the following document (by James C. Spall) as an introduction to SPSA.
-http://www.jhuapl.edu/spsa/PDF-SPSA/Spall_Implementation_of_the_Simultaneous.PDF
+Please see the following for the implementation of SPSA.
+https://github.com/zamar/spsa
 
-Unless otherwise stated, we follow the naming conventions and recommendations of the article. 
 
-2. Modifications for chess engine testing
-=========================================
+2. Modifications of SPSA
+========================
 
-Please see matlab pseudocode by Spall (document, p. 821) as a starting point.
-
-For chess engine testing the following lines in the pseudocode
-
-yplus  = loss(thetaplus)
-yminus = loss(thetaminus)
-ghat = (yplus - yminus) / (2 * ck * delta)
-
-are replaced with:
-
-ghat = match(thetaplus, thetaminus) / (ck * delta)
-
-match() plays a game between two identical engines.
-If engine 1 (= thetaplus) wins, it returns 1.
-If engine 2 (= thetaminus) wins, it returns -1.
-If game is drawn, it returns 0.
-
-For engine testing it makes sense to define a new varible "relative apply factor" Rk:
-Rk := ak / ck^2.
-
-It's interpretation is following:
-
-theta := theta + ak * ghat
-<=>
-theta := theta + ak * match(thetaplus, thetaminus) / (ck * delta)
-<=>
-theta := theta + Rk * ck * match(thetaplus, thetaminus) / delta
-
-Instead of trying to find ideal values for ak, we can try to find an ideal value for Rk.
+- comparison between test, plus and minus instead between plus and minus
+- introduction of an objective (cost) function: 1 / (1 + 10 ** (d / 400)) where d is difference in result between master and test
+- making a and c parameters dependent on cost
 
 3. Configuration file
 =====================
 
-To execute script 'spsa.pl', you need an INI style configuration file.
-Take a look at example files provided. All options should be self-explanatory.
-
-4. Variables CSV-file
-=====================
-
-Variables file (name of the file is defined in configuration file) is a comma separated (CSV) file.
-Columns are defined as follows:
-
-Column 0: Variable name (alphanumeric string)
-Column 1: Variable initial value (float)
-Column 2: Variable minimum value (float)
-Column 3: Variable maximum value (float)
-Column 4: Perturbation "ck" for the last iteration (float)
-Column 5: Relative apply factor "Rk" for the last iteration (float)
-Column 6: For simulation mode, this defines the ELO decrease for point x = (+/-) 100 compared to point x = 0 (optimum) (float).
-
-Notes: 
-- When ck is defined for the last iteration and the number of iterations is known, it's easy to derive a value for c.
-- When ck and Rk are defined for the last iterations, it's easy to derive ak for the last iteration. Based on that we can derive value for a.
-
-5. Getting Started
-==================
-
-- Install Perl. 
-    On Windows: Download and install Stawberry Perl (http://strawberryperl.com/).
-    On UNIX/Linux: It's part of the default installation. So you can skip this step.
-
-- Install the following Perl Packages: Config::Tiny, Text::CSV, Math::Round.
-    On Windows: Open Command Prompt. Type: "cpan". Type: "install Config::Tiny". Type: "install Text::CSV". Type: "install Math::Round"
-    On Debian/Ubuntu Linux: Type: sudo apt-get install libconfig-tiny-perl libtext-csv-perl libmath-round-perl
-    On other UNIX/Linux systems: Please consult the documentation of relevant package management software.
-
-- Modify stockfish to make parameters available via UCI. Copy the modified stockfish in the same directory with the script.
-- Create a config file (just modify 'aggr.conf' slightly) and variable file (just modify 'aggr.var' and add more lines)
-- Kick off the tuning by executing: spsa.pl [configFile]
-
-6. Practical Guidelines
-=======================
-
-To be able to successfully use SPSA for tuning, one needs to determine good values for coefficients ck and Rk.
-In most cases, it's impossible to determine ideal values. 
-For evaluation related parameters, we've had success with the following values:
-Rk for the last iteration (CSV-file, column 5): 0.002
-ck for the last iteration (CSV-file, column 4): 4 centipawns (= 8 in Stockfish's internal scale)
-
-However if parameter is very insensitive ELO-wise, one needs to use a larger value for ck.
-Also if one has even some sort of idea about the ELO-sensitivity of the parameter and how far from optimum
-it might be at maximum, one can use the built-in simulator, to find good values for Rk and ck.
-See files 'simul_1var.conf' and 'simul_1var.var' as an example.
+psqt.var contains all parameters from stockfish piece-square tables
