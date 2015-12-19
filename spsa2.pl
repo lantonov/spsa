@@ -188,7 +188,8 @@ sub run_spsa
     my $row;
     my $result_inc_plus = 0;
     my $result_inc_minus = 0;
-	my $cost = 0.5  :shared;
+	my $cost  :shared;
+	$cost = 0.5;
 
 	# STEP. Calculate number of variables
 	my $n_variables = scalar(@variables);# print "$n_variables \n";
