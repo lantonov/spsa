@@ -82,6 +82,8 @@ local (*LOG);
 ### SECTION. Shared data (volatile data during the execution)
 my $shared_lock      :shared;
 my $shared_iter      :shared; # Iteration counter
+my $shared_cost      :shared; # Current cost
+my $shared_result    :shared; # Current result
 my %shared_theta     :shared; # Current values by variable name
 my %var_eng2         :shared;
 my %var_eng1plus     :shared;
@@ -140,17 +142,15 @@ sub read_csv
     }
 
     # STEP. Prepare shared data
-    $shared_iter = 0;
+    $shared_iter   = 0;
+    $shared_cost   = 0.5;
+    $shared_result = 0;
     
     foreach $row (@variables)
     {
         $shared_theta{$row->[$VAR_NAME]} = $zero_start == 0 ? $row->[$VAR_START] : $row->[$VAR_ZERO];
         $var_eng2{$row->[$VAR_NAME]} = $zero_start == 0 ? $row->[$VAR_START] : $row->[$VAR_ZERO];;
-#        $var_eng0{$row->[$VAR_NAME]} = 0;
     }
-
-	# Start from zero or from initial values
-#	%shared_theta = $zero_start == 0 ? %shared_theta : %var_eng0;
 
     # STEP. Launch SPSA threads
     my @thr;
@@ -186,10 +186,6 @@ sub run_spsa
 {
     my ($threadId) = @_;
     my $row;
-    my $result_inc_plus = 0;
-    my $result_inc_minus = 0;
-	my $cost  :shared;
-	$cost = 0.5;
 
 	# STEP. Calculate number of variables
 	my $n_variables = scalar(@variables);# print "$n_variables \n";
@@ -222,7 +218,8 @@ sub run_spsa
     {
         # SPSA coefficients indexed by variable.
         my (%var_value, %var_min, %var_max, %var_delta, %var_c);
-        my ($iter, $var_a); 
+        my ($iter, $result_inc, $var_a);
+		my $cost = 0.5;
 
         {
              lock($shared_lock);
@@ -234,7 +231,10 @@ sub run_spsa
                  return;
              }
 
-             $iter = $shared_iter;
+             $iter       = $shared_iter;
+             $cost       = $shared_cost;
+             $result_inc = $shared_result;
+
 
              # STEP. Calculate the necessary coefficients for each variable.
              $var_a  = 10 * ($cost) ** 2 / (1 + 10 ** ((1+$iter) / $iterations));
@@ -256,7 +256,9 @@ sub run_spsa
         }
 
         # STEP. Play two games (with alternating colors) and obtain the result (2, 1, 0, -1, -2) from eng1 perspective.
-        my $result_inc = 0;
+		my $result_inc_plus = 0;
+        my $result_inc_minus = 0;
+
 		for (my $i=0;$i<4;$i++) {
 
 		my $result_plus = ($simulate ? simulate_2games(\%var_eng1plus,\%var_eng2) : engine_2games(\%var_eng1plus,\%var_eng2));# print $result_plus;
@@ -265,10 +267,10 @@ sub run_spsa
         my $result_minus = ($simulate ? simulate_2games(\%var_eng1minus,\%var_eng2) : engine_2games(\%var_eng1minus,\%var_eng2));# print $result_minus;
         $result_inc_minus += $result_minus;
 
-		$result_inc += $result_plus - $result_minus; print $result_inc;
+		$result_inc += $result_plus + $result_minus; print $result_inc;
           }
 
-        $cost = 1 / (1 + 10 ** (max($result_inc_plus + $result_inc_minus,-40) / 400));
+        $cost = 1 / (1 + 10 ** (max($result_inc,-40) / 400));
 
         # STEP. Apply the result
         {
@@ -281,11 +283,14 @@ sub run_spsa
             {
                 my $name = $row->[$VAR_NAME];
 
-                $shared_theta{$name} += $result_inc != 0 ? 0.1 * $var_c{$name} * $result_inc / abs($result_inc) / $var_delta{$name} : 0;
+                $shared_theta{$name} += 10 * $var_c{$name} * ($cost-$shared_cost) / $var_delta{$name};
                 $shared_theta{$name} = max(min($shared_theta{$name}, $var_max{$name}), $var_min{$name});
                 
              $logLine1 .= ",$shared_theta{$name}";
             }
+
+            $shared_cost = $cost;
+			$shared_result = $result_inc;
 
             print LOG "$logLine $logLine1\n "
         }
