@@ -104,7 +104,7 @@ class RandomWalking:
 
         error_vector = []
         value_vector = []
-        max_iterations = 20
+        max_iterations = 300
         for iteration in range(max_iterations):
             log_file = open('result.txt', 'a+')
             print('Iteration:' + iteration.__repr__())
@@ -120,12 +120,13 @@ class RandomWalking:
 
             error_vector.append(float(error))
             value_vector.extend(values)
-        log_file.close()
-
+            log_file.close()
+        
+        # General least squares        
         error_array = np.array(error_vector)
         value_array = np.array(value_vector).reshape(max_iterations, self.variables_count)
         beta_hat = np.linalg.inv(value_array.transpose().dot(value_array)).dot(value_array.transpose().dot(error_array))
-        print(np.repeat(min(error_array), self.variables_count) / beta_hat)
+        print(np.repeat(min(error_array), self.variables_count) / beta_hat) # max_iterations > self.variables_count to avoid inf values
 
 def main():
     rw = RandomWalking()
