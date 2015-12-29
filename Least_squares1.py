@@ -62,7 +62,7 @@ class RandomWalking:
         board.set_fen(fen)
         self.modified_engine.position(board)
         if max_depth != 0:
-            self.modofied_engine.go(depth=max_depth, async_callback=False)
+            self.modified_engine.go(depth=max_depth, async_callback=False)
         else:
             self.modified_engine.go(movetime=move_time, async_callback=False)            
         while self.modified_engine.bestmove is None:
@@ -104,7 +104,7 @@ class RandomWalking:
 
         error_vector = []
         value_vector = []
-        max_iterations = 300
+        max_iterations = 2 * self.variables_count
         for iteration in range(max_iterations):
             log_file = open('result.txt', 'a+')
             print('Iteration:' + iteration.__repr__())
@@ -123,13 +123,14 @@ class RandomWalking:
             log_file.close()
         
         # General least squares        
-        error_array = np.array(error_vector)
+        error_array = np.array(error_vector) - np.repeat(min(error_vector), max_iterations)
+        print(error_array)
         value_array = np.array(value_vector).reshape(max_iterations, self.variables_count)
         beta_hat = np.linalg.inv(value_array.transpose().dot(value_array)).dot(value_array.transpose().dot(error_array))
-        print(np.repeat(min(error_array), self.variables_count) / beta_hat) # max_iterations > self.variables_count to avoid inf values
+        print(np.repeat(1.0, self.variables_count) / beta_hat) # max_iterations > self.variables_count to avoid inf values
 
 def main():
     rw = RandomWalking()
-    rw.tune("analyzed.txt", 1500)  # FEN file and sample size
+    rw.tune("analyzed.txt", 100)  # FEN file and sample size
 
 main()
