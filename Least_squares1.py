@@ -79,7 +79,7 @@ class RandomWalking:
         max_samples *= 1.0
         while fen_line != '' and count < max_samples:
             cp = int(fen_file.readline())     # ideal values in centipawn
-            error = abs(self.run_engine(fen=fen_line, move_time=25) - cp)
+            error = abs(self.run_engine(fen=fen_line, move_time=10) - cp)
             s += error
             count += 1
             fen_line = fen_file.readline()     # FEN position
@@ -104,9 +104,8 @@ class RandomWalking:
 
         error_vector = []
         value_vector = []
-        max_iterations = 2 * self.variables_count
+        max_iterations = 4 * self.variables_count # max_iterations > self.variables_count to avoid inf values
         for iteration in range(max_iterations):
-            log_file = open('result.txt', 'a+')
             print('Iteration:' + iteration.__repr__())
             for i in range(self.variables_count):
                 values[i] = random.gauss(values_mean, values_std)
@@ -117,18 +116,17 @@ class RandomWalking:
             print('Error: ' + error.__repr__())
             if error == 0:
                 break
-
             error_vector.append(float(error))
             value_vector.extend(values)
-            log_file.close()
         
         # General least squares        
         error_array = np.array(error_vector) - np.repeat(min(error_vector), max_iterations)
-        print(error_array)
         value_array = np.array(value_vector).reshape(max_iterations, self.variables_count)
-        beta_hat = np.linalg.inv(value_array.transpose().dot(value_array)).dot(value_array.transpose().dot(error_array))
-        print(np.repeat(1.0, self.variables_count) / beta_hat) # max_iterations > self.variables_count to avoid inf values
-
+        slopes = np.linalg.inv(value_array.transpose().dot(value_array)).dot(value_array.transpose().dot(error_array))
+        parameters = np.repeat(1.0, self.variables_count) / slopes
+        print(parameters)
+        log_file.close()
+        
 def main():
     rw = RandomWalking()
     rw.tune("analyzed.txt", 100)  # FEN file and sample size
