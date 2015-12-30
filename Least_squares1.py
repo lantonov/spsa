@@ -93,18 +93,15 @@ class RandomWalking:
         for i in range(self.variables_count):
             values.append(0.0)
 
-        log_file = open('result.txt', 'a+')
-        log_file.writelines('\n------------New session started-----------------\n')
         for i in range(self.variables_count):
             self.modified_engine.setoption({self.variable_names[i]: self.best_values[i]})
         self.modified_engine.ucinewgame(async_callback=False)
         min_error = error = self.mae(fen_file_path, max_samples)
-        log_file.writelines('Error before first iteration: ' + error.__repr__() + '\n---------------------------------------\n')
         print('Error before first iteration: ' + error.__repr__())
-
+        
         error_vector = []
         value_vector = []
-        max_iterations = 4 * self.variables_count # max_iterations > self.variables_count to avoid inf values
+        max_iterations = 5 * self.variables_count # max_iterations > self.variables_count to avoid inf values
         for iteration in range(max_iterations):
             print('Iteration:' + iteration.__repr__())
             for i in range(self.variables_count):
@@ -125,6 +122,9 @@ class RandomWalking:
         slopes = np.linalg.inv(value_array.transpose().dot(value_array)).dot(value_array.transpose().dot(error_array))
         parameters = np.repeat(1.0, self.variables_count) / slopes
         print(parameters)
+        log_file = open('result.txt', 'a+')
+        log_file.writelines('\n m=' + max_iterations.__repr__() + ' Positions=' + max_samples.__repr__() + ' Time=\n')       
+        log_file.writelines(str(parameters))
         log_file.close()
         
 def main():
