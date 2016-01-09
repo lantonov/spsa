@@ -98,11 +98,11 @@ class RandomWalking:
         
         error_vector = []
         value_vector = []
-        max_iterations = 50 # max_iterations > self.variables_count to avoid inf values
+        max_iterations = 500 # max_iterations > self.variables_count to avoid inf values
         for iteration in range(max_iterations):
             print('Iteration:' + iteration.__repr__())
             for i in range(self.variables_count):
-                values[i] = random.randint(min(self.best_values)-2, max(self.best_values)+2)
+                values[i] = random.randint(min(self.best_values)-3, max(self.best_values)+3)
                 self.modified_engine.setoption({self.variable_names[i]: values[i]})
             self.modified_engine.ucinewgame(async_callback=False)
             error = self.mae(fen_file_path, max_samples)
@@ -121,8 +121,7 @@ class RandomWalking:
         optimized = []
         for count in range(self.variables_count):
             mean_array.append([np.mean(error_array[np.where(bins[count]==i)]) for i in bins[count]])         
-            bin_index = mean_array[count].index(min(mean_array[count]))
-            optimized.append(bins[count][bin_index])
+            optimized.append(bins[count][mean_array[count].index(min(mean_array[count]))])
         print(optimized)
         log_file = open('result.txt', 'a+')
         log_file.writelines(mean_array.__repr__() + '\n')
