@@ -102,7 +102,7 @@ class RandomWalking:
         for iteration in range(max_iterations):
             print('Iteration:' + iteration.__repr__())
             for i in range(self.variables_count):
-                values[i] = random.randint(min(self.best_values)-3, max(self.best_values)+3)
+                values[i] = np.random.random_integers(min(self.best_values)-1, max(self.best_values)+1)
                 self.modified_engine.setoption({self.variable_names[i]: values[i]})
             self.modified_engine.ucinewgame(async_callback=False)
             error = self.mae(fen_file_path, max_samples)
