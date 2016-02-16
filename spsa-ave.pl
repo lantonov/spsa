@@ -212,7 +212,7 @@ sub run_spsa
     {
         # SPSA coefficients indexed by variable.
         my (%var_value, %var_min, %var_max, %var_a, %var_c, %var_R, %var_delta, %var_eng1, %var_eng2);
-        my ($iter, $result); 
+        my $iter; 
 
         {
              lock($shared_lock);
@@ -247,9 +247,10 @@ sub run_spsa
         }
 
         # STEP. Play two games (with alternating colors) and obtain the result (2, 1, 0, -1, -2) from eng1 perspective.
+        my $result = 0;
         for (my $repeat=1; $repeat < 10; $repeat++) {
-            $result = ($simulate ? simulate_2games(\%var_eng1, \%var_eng2) : engine_2games(\%var_eng1, \%var_eng2));
-            $result += $result;
+            my $result_inc = ($simulate ? simulate_2games(\%var_eng1, \%var_eng2) : engine_2games(\%var_eng1, \%var_eng2));
+            $result += $result_inc;
         }
 
         # STEP. Apply the result
