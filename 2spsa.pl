@@ -241,13 +241,14 @@ sub run_spsa
 
                  $var_eng1{$name} = min(max($var_value{$name} + $var_c{$name} * $var_delta{$name}, $var_min{$name}), $var_max{$name});
                  $var_eng2{$name} = min(max($var_value{$name} - $var_c{$name} * $var_delta{$name}, $var_min{$name}), $var_max{$name});
-                 $var_eng0{$name} = $var_value{$name};
+                 $var_eng0{$name} = $var_value{$name}; # This is the engine at theta_0.
 
                  print "Iteration: $iter, variable: $name, value: $var_value{$name}, a: $var_a{$name}, c: $var_c{$name}, R: $var_R{$name}\n";
              }
         }
 
-        # STEP. Play two games (with alternating colors) and obtain the result (2, 1, 0, -1, -2) from eng1 perspective.
+        # STEP. Testing the engine at theta_0 against the engines above and below it and forming the gradient
+        #       f(theta_0 + c_k * Delta_k) - f(theta_0 - c_k * Delta_k).
         my $result = ($simulate ? simulate_2games(\%var_eng1, \%var_eng0) : engine_2games(\%var_eng1, \%var_eng0));
            $result -= ($simulate ? simulate_2games(\%var_eng2, \%var_eng0) : engine_2games(\%var_eng2, \%var_eng0));
 
@@ -387,7 +388,7 @@ sub engine_2games
     }
 
     # STEP. Play two games
-    for (my $eng1_is_white = 0; $eng1_is_white < 20; $eng1_is_white++)
+    for (my $eng1_is_white = 0; $eng1_is_white < 2; $eng1_is_white++)
     {
         # STEP. Tell engines to prepare for a new game
         print Eng1_Writer "ucinewgame\n";
@@ -529,7 +530,7 @@ READ:      while($line = engine_readline($Curr_Reader))
        # STEP. Record the result
        print GAMELOG "Winner: $winner\n";
 
-       $result += ($winner == 1 ? 1 : $winner == 2 ? -1 : 0); print "$result \n";
+       $result += ($winner == 1 ? 1 : $winner == 2 ? -1 : 0);
    }
 
    return $result;
