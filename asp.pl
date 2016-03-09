@@ -274,7 +274,7 @@ sub run_spsa
                 $shared_theta{$name} += $var_R{$name} * $result / $hessian_ave / $var_delta{$name} / $var_deltah{$name};
                 $shared_theta{$name} = max(min($shared_theta{$name}, $var_max{$name}), $var_min{$name});
                 
-                $logLine .= ",$result,$shared_theta{$name}";
+                $logLine .= ",$shared_theta{$name}";
             }
 
             print LOG "$logLine\n"
