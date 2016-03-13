@@ -237,29 +237,28 @@ sub run_spsa
                  $var_max{$name}    = $row->[$VAR_MAX];
                  $var_a{$name}      = $row->[$VAR_A] / ($A + $iter) ** $alpha;
                  $var_c{$name}      = $row->[$VAR_C] / $iter ** $gamma;
-                 $var_ch{$name}      = $row->[$VAR_C] * 1.2 / $iter ** $gamma;
+                 $var_ch{$name}     = $row->[$VAR_C] * 1.2 / $iter ** $gamma;
                  $var_R{$name}      = $var_a{$name} / $var_c{$name};
                  $var_delta{$name}  = int(rand(2)) ? 1 : -1;
-                 $var_deltah{$name}  = int(rand(2)) ? 1 : -1;
+                 $var_deltah{$name} = int(rand(2)) ? 1 : -1;
 
-                 $var_eng1{$name} = min(max($var_value{$name} + $var_c{$name} * $var_delta{$name}, $var_min{$name}), $var_max{$name});
-                 $var_eng2{$name} = min(max($var_value{$name} - $var_c{$name} * $var_delta{$name}, $var_min{$name}), $var_max{$name});
-                 $var_eng1h{$name} = min(max($var_value{$name} + $var_c{$name} * $var_delta{$name} + $var_ch{$name} * $var_deltah{$name}, $var_min{$name}), $var_max{$name});
-                 $var_eng2h{$name} = min(max($var_value{$name} - $var_c{$name} * $var_delta{$name} + $var_ch{$name} * $var_deltah{$name}, $var_min{$name}), $var_max{$name});
-                 $var_eng0{$name} = $var_value{$name};
+                 $var_eng1{$name}   = min(max($var_value{$name} + $var_c{$name} * $var_delta{$name}, $var_min{$name}), $var_max{$name});
+                 $var_eng2{$name}   = min(max($var_value{$name} - $var_c{$name} * $var_delta{$name}, $var_min{$name}), $var_max{$name});
+                 $var_eng1h{$name}  = min(max($var_value{$name} + $var_c{$name} * $var_delta{$name} + $var_ch{$name} * $var_deltah{$name}, $var_min{$name}), $var_max{$name});
+                 $var_eng2h{$name}  = min(max($var_value{$name} - $var_c{$name} * $var_delta{$name} + $var_ch{$name} * $var_deltah{$name}, $var_min{$name}), $var_max{$name});
+                 $var_eng0{$name}   = $var_value{$name};
 
                  print "Iteration: $iter, variable: $name, value: $var_value{$name}, a: $var_a{$name}, c: $var_c{$name}, R: $var_R{$name}\n";
              }
         }
 
-        # STEP. Play two games (with alternating colors) and obtain the result (2, 1, 0, -1, -2) from eng1 perspective.
-        my $result_plus = ($simulate ? simulate_2games(\%var_eng1, \%var_eng0) : engine_2games(\%var_eng1, \%var_eng0));
-        my $hessian_plus = ($simulate ? simulate_2games(\%var_eng1h, \%var_eng0) : engine_2games(\%var_eng1h, \%var_eng0)) - $result_plus;
-        my $result_minus = ($simulate ? simulate_2games(\%var_eng2, \%var_eng0) : engine_2games(\%var_eng2, \%var_eng0));
+        # STEP. Calculate gradient and hessian
+        my $result_plus   = ($simulate ? simulate_2games(\%var_eng1, \%var_eng0) : engine_2games(\%var_eng1, \%var_eng0));
+        my $hessian_plus  = ($simulate ? simulate_2games(\%var_eng1h, \%var_eng0) : engine_2games(\%var_eng1h, \%var_eng0)) - $result_plus;
+        my $result_minus  = ($simulate ? simulate_2games(\%var_eng2, \%var_eng0) : engine_2games(\%var_eng2, \%var_eng0));
         my $hessian_minus = ($simulate ? simulate_2games(\%var_eng2h, \%var_eng0) : engine_2games(\%var_eng2h, \%var_eng0)) - $result_minus;
-        my $result = $result_plus - $result_minus; print "$result \n";
-        my $hessian = $hessian_plus - $hessian_minus; print "$hessian \n";
-        $hessian_ave = $iter * $hessian_ave / ($iter + 1) + $hessian / ($iter + 1); print "$hessian_ave \n";
+
+        my $result = $result_plus - $result_minus;
 
         # STEP. Apply the result
         {
@@ -270,8 +269,11 @@ sub run_spsa
             foreach $row (@variables)
             {
                 my $name = $row->[$VAR_NAME];
+                my $hessian = ($hessian_plus - $hessian_minus) / $var_ch{$name} / $var_deltah{$name};
+                $hessian_ave = $iter * $hessian_ave / ($iter + 1) + $hessian / ($iter + 1);
+                $hessian_ave = 1 if $hessian_ave == 0;
 
-                $shared_theta{$name} += $var_R{$name} * $result / $hessian_ave / $var_delta{$name} / $var_deltah{$name};
+                $shared_theta{$name} += $var_R{$name} * $result / $hessian_ave / $var_delta{$name};
                 $shared_theta{$name} = max(min($shared_theta{$name}, $var_max{$name}), $var_min{$name});
                 
                 $logLine .= ",$shared_theta{$name}";
