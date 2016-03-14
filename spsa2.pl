@@ -249,8 +249,8 @@ sub run_spsa
 
         # STEP. Testing the engine at theta_0 against the engines above and below it and forming the gradient
         #       f(theta_0 + c_k * Delta_k) - f(theta_0 - c_k * Delta_k).
-        my $result = ($simulate ? simulate_2games(\%var_eng1, \%var_eng0) : engine_2games(\%var_eng1, \%var_eng0));
-           $result -= ($simulate ? simulate_2games(\%var_eng2, \%var_eng0) : engine_2games(\%var_eng2, \%var_eng0));
+        my $result = ($simulate ? simulate_2games(\%var_eng0, \%var_eng1) : engine_2games(\%var_eng0, \%var_eng1));
+           $result -= ($simulate ? simulate_2games(\%var_eng0, \%var_eng2) : engine_2games(\%var_eng0, \%var_eng2));
 
         # STEP. Apply the result
         {

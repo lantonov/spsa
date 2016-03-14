@@ -253,10 +253,10 @@ sub run_spsa
         }
 
         # STEP. Calculate gradient and hessian
-        my $result_plus   = ($simulate ? simulate_2games(\%var_eng1, \%var_eng0) : engine_2games(\%var_eng1, \%var_eng0));
-        my $hessian_plus  = ($simulate ? simulate_2games(\%var_eng1h, \%var_eng0) : engine_2games(\%var_eng1h, \%var_eng0)) - $result_plus;
-        my $result_minus  = ($simulate ? simulate_2games(\%var_eng2, \%var_eng0) : engine_2games(\%var_eng2, \%var_eng0));
-        my $hessian_minus = ($simulate ? simulate_2games(\%var_eng2h, \%var_eng0) : engine_2games(\%var_eng2h, \%var_eng0)) - $result_minus;
+        my $result_plus   = ($simulate ? simulate_2games(\%var_eng0, \%var_eng1) : engine_2games(\%var_eng0, \%var_eng1));
+        my $hessian_plus  = ($simulate ? simulate_2games(\%var_eng0, \%var_eng1h) : engine_2games(\%var_eng0, \%var_eng1h)) - $result_plus;
+        my $result_minus  = ($simulate ? simulate_2games(\%var_eng0, \%var_eng2) : engine_2games(\%var_eng0, \%var_eng2));
+        my $hessian_minus = ($simulate ? simulate_2games(\%var_eng0, \%var_eng2h) : engine_2games(\%var_eng0, \%var_eng2h)) - $result_minus;
 
         my $result = $result_plus - $result_minus;
 
