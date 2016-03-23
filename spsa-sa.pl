@@ -42,12 +42,15 @@ my $ConfigFile = $ARGV[0] || die "You must pass the name of config file as param
 my $Config = Config::Tiny->new;
 $Config = Config::Tiny->read($ConfigFile) || die "Unable to read configuration file '" . $ConfigFile . "'";
 
-my $simulate       = $Config->{Main}->{Simulate}  ; defined($simulate)       || die "Simulate not defined!";
-my $zero_start     = $Config->{Main}->{ZeroStart} ; defined($zero_start)     || die "Zero start not defined!";
-my $variables_path = $Config->{Main}->{Variables} ; defined($variables_path) || die "Variables not defined!";
-my $log_path       = $Config->{Main}->{Log}       ; defined($log_path)       || die "Log not defined!";;
-my $gamelog_path   = $Config->{Main}->{GameLog}   ; defined($gamelog_path)   || die "GameLog not defined!";;
-my $iterations     = $Config->{Main}->{Iterations}; defined($iterations)     || die "Iterations not defined!";;
+my $simulate         = $Config->{Main}->{Simulate}         ; defined($simulate)         || die "Simulate not defined!";
+my $zero_start       = $Config->{Main}->{ZeroStart}        ; defined($zero_start)       || die "Zero start not defined!";
+my $variables_path   = $Config->{Main}->{Variables}        ; defined($variables_path)   || die "Variables not defined!";
+my $log_path         = $Config->{Main}->{Log}              ; defined($log_path)         || die "Log not defined!";
+my $gamelog_path     = $Config->{Main}->{GameLog}          ; defined($gamelog_path)     || die "GameLog not defined!";
+my $iterations       = $Config->{Main}->{Iterations}       ; defined($iterations)       || die "Iterations not defined!";
+my $A                = $Config->{Main}->{A}                ; defined($A)                || die "A not defined!";
+my $gamma            = $Config->{Main}->{Gamma}            ; defined($gamma)            || die "Gamma not defined!";
+my $alpha            = $Config->{Main}->{Alpha}            ; defined($alpha)            || die "Alpha not defined!";
 
 my $eng1_path        = $Config->{Engine}->{Engine1}        ; defined($eng1_path)        || $simulate || die "Engine1 not defined!";
 my $eng2_path        = $Config->{Engine}->{Engine2}        ; defined($eng2_path)        || $simulate || die "Engine2 not defined!";
@@ -68,9 +71,14 @@ my $VAR_START     = 1; # Start Value (theta_0)
 my $VAR_MIN       = 2; # Minimum allowed value
 my $VAR_MAX       = 3; # Maximum allowed value
 my $VAR_C_END     = 4; # c in the last iteration
-my $VAR_ZERO      = 5; # R in the last iteration. R = a / c ^ 2.
+my $VAR_R_END     = 5; # R in the last iteration. R = a / c ^ 2.
 my $VAR_SIMUL_ELO = 6; # Simulation: Elo loss from 0 (optimum) to +-100)
 my $VAR_END       = 7; # Nothing
+
+# Extra calculated COLUMNS (SPSA paramters)
+my $VAR_C         = 7; # c
+my $VAR_A_END     = 8; # a in the last iteration
+my $VAR_A         = 9; # a
 
 ### SECTION. Variable definitions. (Static data during execution)
 my @variables;
@@ -85,9 +93,6 @@ my $shared_iter      :shared; # Iteration counter
 my $shared_cost      :shared; # Current cost
 my $shared_result    :shared; # Current result
 my %shared_theta     :shared; # Current values by variable name
-my %var_eng2         :shared;
-my %var_eng1plus     :shared;
-my %var_eng1minus    :shared;
 
 ### SECTION. Helper functions
 
@@ -131,10 +136,18 @@ sub read_csv
         die "Invalid max: '$row->[$VAR_MAX]'"                 if ($row->[$VAR_MAX]       !~ /^[-+]?[0-9]*\.?[0-9]+$/);
         die "Invalid min: '$row->[$VAR_MIN]'"                 if ($row->[$VAR_MIN]       !~ /^[-+]?[0-9]*\.?[0-9]+$/);
         die "Invalid c end: '$row->[$VAR_C_END]'"             if ($row->[$VAR_C_END]     !~ /^[-+]?[0-9]*\.?[0-9]+$/);
-        die "Invalid r end: '$row->[$VAR_ZERO]'"             if ($row->[$VAR_ZERO]     !~ /^[-+]?[0-9]*\.?[0-9]+$/);
+        die "Invalid r end: '$row->[$VAR_R_END]'"             if ($row->[$VAR_R_END]     !~ /^[-+]?[0-9]*\.?[0-9]+$/);
         die "Invalid simul ELO: '$row->[$VAR_SIMUL_ELO]'"     if ($row->[$VAR_SIMUL_ELO] !~ /^[-+]?[0-9]*\.?[0-9]+$/);
     }
-    
+
+    # STEP. Calculate SPSA parameters for each variable.
+    foreach $row (@variables)
+    {
+        $row->[$VAR_C]       = $row->[$VAR_C_END] * $iterations ** $gamma; 
+        $row->[$VAR_A_END]   = $row->[$VAR_R_END] * $row->[$VAR_C_END] ** 2;
+        $row->[$VAR_A]       = $row->[$VAR_A_END] * ($A + $iterations) ** $alpha;
+    }
+
     # STEP. Create variable index for easy access.
     foreach $row (@variables)
     {
@@ -148,8 +161,8 @@ sub read_csv
     
     foreach $row (@variables)
     {
-        $shared_theta{$row->[$VAR_NAME]} = $zero_start == 0 ? $row->[$VAR_START] : $row->[$VAR_ZERO];
-        $var_eng2{$row->[$VAR_NAME]} = $zero_start == 0 ? $row->[$VAR_START] : $row->[$VAR_ZERO];;
+        $shared_theta{$row->[$VAR_NAME]} = $row->[$VAR_START];
+#        $var_eng2{$row->[$VAR_NAME]} = $zero_start == 0 ? $row->[$VAR_START] : $row->[$VAR_ZERO];
     }
 
     # STEP. Launch SPSA threads
@@ -187,18 +200,20 @@ sub run_spsa
     my ($threadId) = @_;
     my $row;
 
-	# STEP. Calculate number of variables
-	my $n_variables = scalar(@variables);# print "$n_variables \n";
+    # STEP. Calculate number of variables
+    my $n_variables = scalar @variables;# print "$n_variables \n";
+    my $result_inc;
+    my $cost = 0.5;
 
-	# STEP. Calculate sum and mean of absolute variable values.
-	my $sum_var;
+    # STEP. Calculate sum and mean of absolute variable values.
+    my $sum_var;
              foreach $row (@variables)
              {
               my $name  = $row->[$VAR_NAME];
-              $sum_var += abs($var_eng2{$name});
+#              $sum_var += abs($var_eng2{$name});
              }
 
-	my $mean = $sum_var / $n_variables; print "$mean \n";
+#    my $mean = $sum_var / $n_variables; print "$mean \n";
 
     # STEP. Open thread specific log file
     my $path = $gamelog_path;
@@ -217,9 +232,8 @@ sub run_spsa
     while(1)
     {
         # SPSA coefficients indexed by variable.
-        my (%var_value, %var_min, %var_max, %var_delta, %var_c);
-        my ($iter, $result_inc, $var_a);
-		my $cost = 0.5;
+        my (%var_value, %var_min, %var_max, %var_a, %var_c, %var_R, %var_delta, %var_eng1, %var_eng2, %var_eng0);
+        my ($iter, $var_a);
 
         {
              lock($shared_lock);
@@ -231,66 +245,57 @@ sub run_spsa
                  return;
              }
 
-             $iter       = $shared_iter;
-             $cost       = $shared_cost;
-             $result_inc = $shared_result;
+             $iter = $shared_iter;
 
 
              # STEP. Calculate the necessary coefficients for each variable.
-             $var_a  = 10 * ($cost) ** 2 / (1 + 10 ** ((1+$iter) / $iterations));
+#             $var_a  = 10 * ($cost) ** 2 / (1 + 10 ** ((1+$iter) / $iterations));
 
              foreach $row (@variables)
              {
                  my $name  = $row->[$VAR_NAME];
+
                  $var_value{$name}  = $shared_theta{$name};
                  $var_min{$name}    = $row->[$VAR_MIN];
                  $var_max{$name}    = $row->[$VAR_MAX];
+                 $var_a{$name}      = $row->[$VAR_A] / ($A + $iter) ** $alpha;
+                 $var_c{$name}      = $row->[$VAR_C] / $iter ** $gamma;
+                 $var_R{$name}      = $var_a{$name} / $var_c{$name};
                  $var_delta{$name}  = int(rand(2)) ? 1 : -1;
-				 $var_c{$name}      = 0.1 * $shared_theta{$name} * $var_a;
 
-                 $var_eng1plus{$name}  = min(max($var_value{$name} + $var_c{$name} * $var_delta{$name}, $var_min{$name}), $var_max{$name});
-                 $var_eng1minus{$name} = min(max($var_value{$name} - $var_c{$name} * $var_delta{$name}, $var_min{$name}), $var_max{$name});
+                 $var_eng1{$name} = min(max($var_value{$name} + $var_c{$name} * $var_delta{$name}, $var_min{$name}), $var_max{$name});
+                 $var_eng2{$name} = min(max($var_value{$name} - $var_c{$name} * $var_delta{$name}, $var_min{$name}), $var_max{$name});
+                 $var_eng0{$name} = $var_value{$name};
 
-		print "Iteration: $iter, variable: $name, value: $var_value{$name}, a: $var_a, c: $var_c{$name}, Cost: $cost \n";
+        print "Iteration: $iter, variable: $name, value: $var_value{$name}, a: $var_a{$name}, c: $var_c{$name}, Cost: $cost \n";
              }
         }
 
         # STEP. Play two games (with alternating colors) and obtain the result (2, 1, 0, -1, -2) from eng1 perspective.
-		my $result_inc_plus = 0;
-        my $result_inc_minus = 0;
+        my $result_plus   = ($simulate ? simulate_2games(\%var_eng1, \%var_eng0) : engine_2games(\%var_eng1, \%var_eng0));
+        my $result_minus  = ($simulate ? simulate_2games(\%var_eng2, \%var_eng0) : engine_2games(\%var_eng2, \%var_eng0));
 
-		for (my $i=0;$i<4;$i++) {
-
-		my $result_plus = ($simulate ? simulate_2games(\%var_eng1plus,\%var_eng2) : engine_2games(\%var_eng1plus,\%var_eng2));# print $result_plus;
-        $result_inc_plus += $result_plus;
-
-        my $result_minus = ($simulate ? simulate_2games(\%var_eng1minus,\%var_eng2) : engine_2games(\%var_eng1minus,\%var_eng2));# print $result_minus;
-        $result_inc_minus += $result_minus;
-
-		$result_inc += $result_plus + $result_minus; print $result_inc;
-          }
-
-        $cost = 1 / (1 + 10 ** (max($result_inc,-40) / 400));
+        my $result = $result_plus - $result_minus;
 
         # STEP. Apply the result
         {
             lock($shared_lock);
 
-            my $logLine = "$iter, $var_a, $cost \n";
-			my $logLine1;
+            my $logLine = "$iter";
+            my $logLine1;
+
+            $shared_result += $result_plus + $result_minus; print "$shared_result \n";
+            $cost = 1 / (1 + 10 ** (-$shared_result / 100));
 
             foreach $row (@variables)
             {
                 my $name = $row->[$VAR_NAME];
 
-                $shared_theta{$name} += 10 * $var_c{$name} * ($cost-$shared_cost) / $var_delta{$name};
+                $shared_theta{$name} += 2 * $cost * $var_R{$name} * $result / $var_delta{$name};
                 $shared_theta{$name} = max(min($shared_theta{$name}, $var_max{$name}), $var_min{$name});
-                
-             $logLine1 .= ",$shared_theta{$name}";
-            }
 
-            $shared_cost = $cost;
-			$shared_result = $result_inc;
+                $logLine1 .= ",$shared_theta{$name}";
+            }
 
             print LOG "$logLine $logLine1\n "
         }
@@ -403,7 +408,7 @@ sub engine_2games
 
     # STEP. Send rounded values to engines
 
-	foreach my $var (keys(%$var_eng2))
+    foreach my $var (keys(%$var_eng2))
     {
        my $val1 = nearest(1, $var_eng1->{$var});
        my $val2 = nearest(1, $var_eng2->{$var});
