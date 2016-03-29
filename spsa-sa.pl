@@ -133,7 +133,7 @@ sub read_csv
     {
         die "Wrong number of columns!" if (scalar(@$row) != $VAR_END);
 
-        die "Invalid name: '$row->[$VAR_NAME]'"               if ($row->[$VAR_NAME]      !~ /^\w+$/);
+        die "Invalid name: '$row->[$VAR_NAME]'"               if ($row->[$VAR_NAME]      !~ /^[\w\[\]]+$/);
         die "Invalid current: '$row->[$VAR_START]'"           if ($row->[$VAR_START]     !~ /^[-+]?[0-9]*\.?[0-9]+$/);
         die "Invalid max: '$row->[$VAR_MAX]'"                 if ($row->[$VAR_MAX]       !~ /^[-+]?[0-9]*\.?[0-9]+$/);
         die "Invalid min: '$row->[$VAR_MIN]'"                 if ($row->[$VAR_MIN]       !~ /^[-+]?[0-9]*\.?[0-9]+$/);
@@ -250,7 +250,7 @@ sub run_spsa
                  $var_eng2{$name} = min(max($var_value{$name} - $var_c{$name} * $var_delta{$name}, $var_min{$name}), $var_max{$name});
                  $var_eng0{$name} = $var_value{$name};
 
-        print "Iteration: $iter, variable: $name, value: $var_value{$name}, a: $var_a{$name}, c: $var_c{$name}, Cost: $cost, Cumulation: $shared_result \n";
+        print "Iteration: $iter, variable: $name, value: $var_value{$name}, a: $var_a{$name}, c: $var_c{$name}, Cost: $cost, Total: $shared_result \n";
              }
         }
 
@@ -264,7 +264,7 @@ sub run_spsa
         {
             lock($shared_lock);
 
-            my $logLine = "$iter";
+            my $logLine = "$iter, $cost, $shared_result";
             my $logLine1;
 
         # Calculate the loss function
