@@ -269,14 +269,14 @@ sub run_spsa
 
         # Calculate the loss function
             $shared_result += $result_plus + $result_minus;
-            $cost = 1 / (1 + 10 ** (-$shared_result / $decrement));
+            $cost = 1 / (1 + 10 ** (-$shared_result / $step_size));
 
             foreach $row (@variables)
             {
                 my $name = $row->[$VAR_NAME];
 
         # Increment parameters
-                $shared_theta{$name} += $step_size * $cost * $var_R{$name} * $result / $var_delta{$name};
+                $shared_theta{$name} += $decrement * $cost * $var_R{$name} * $result / $var_delta{$name};
                 $shared_theta{$name} = max(min($shared_theta{$name}, $var_max{$name}), $var_min{$name});
 
                 $logLine1 .= ",$shared_theta{$name}";
